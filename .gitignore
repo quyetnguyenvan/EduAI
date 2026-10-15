@@ -1,0 +1,21 @@
+# .gitignore cho .NET / C#
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+appsettings.Development.json
+generator.py
+appsettings.json
+publish/
+*.db
+*.exe
+*.dll
+*.pdb
+bin/
+obj/
+appsettings.json
+appsettings.*.json
+/publish/api/EduAI.Api.exe

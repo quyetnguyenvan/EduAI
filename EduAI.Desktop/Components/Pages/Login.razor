@@ -1,0 +1,205 @@
+@page "/login"
+@inject HttpClient Http
+@inject EduAI.Desktop.Services.AuthService AuthService
+@inject NavigationManager NavManager
+@inject Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage ProtectedLocalStore
+
+<PageTitle>Đăng nhập & Đăng ký</PageTitle>
+
+@if (AuthService.CurrentUser != null)
+{
+    <!-- GIAO DIỆN KHI ĐÃ ĐĂNG NHẬP -->
+    <div class="row justify-content-center mt-5 mb-5">
+        <div class="col-md-6 text-center">
+            <div class="card shadow-sm border-0 p-5">
+                <h2 class="text-success"><i class="bi bi-check-circle-fill"></i> Đã đăng nhập</h2>
+                <h5 class="mt-3">Xin chào, <strong>@AuthService.CurrentUser.FullName</strong>!</h5>
+                <p class="text-muted">
+                    Bạn đang đăng nhập với tư cách: 
+                    <span class="badge @(AuthService.CurrentUser.Role == "Admin" ? "bg-danger" : "bg-primary")">
+                        @(AuthService.CurrentUser.Role == "Admin" ? "Quản trị viên" : $"Học sinh Lớp {AuthService.CurrentUser.ClassGrade}")
+                    </span>
+                </p>
+                <div class="mt-4">
+                    <button class="btn btn-primary px-4 me-2" @onclick='() => NavManager.NavigateTo("/")'>
+                        <i class="bi bi-house-door"></i> Về Trang Chủ
+                    </button>
+                    <button class="btn btn-outline-secondary px-4" @onclick='() => NavManager.NavigateTo("/profile")'>
+                        <i class="bi bi-person-lines-fill"></i> Xem Hồ Sơ
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <!-- GIAO DIỆN FORM ĐĂNG NHẬP VÀ ĐĂNG KÝ (KHI CHƯA ĐĂNG NHẬP) -->
+    <div class="row justify-content-center mt-5 mb-5">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <h3 class="text-center mb-4 text-primary"><i class="bi bi-person-badge"></i> Hệ thống Đăng nhập</h3>
+
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger">@errorMessage</div>
+                    }
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success">@successMessage</div>
+                    }
+
+                    <!-- Bọc form và bắt sự kiện onsubmit để hỗ trợ nhấn phím Enter -->
+                    <form @onsubmit="HandleLogin">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Tên tài khoản (Username)</label>
+                            <input class="form-control" @bind="username" placeholder="Nhập tên tài khoản..." />
+                        </div>
+
+                        <hr class="my-4" />
+                        <h6 class="text-muted mb-3"><i class="bi bi-info-circle"></i> Điền thêm phần dưới đây nếu BẠN LÀ HỌC SINH MỚI (Đăng ký)</h6>
+
+                        <div class="mb-3">
+                            <label class="form-label">Họ và tên</label>
+                            <input class="form-control" @bind="fullName" placeholder="Nhập họ tên đầy đủ..." />
+                        </div>
+
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label class="form-label">Cấp học</label>
+                                <select class="form-select" @bind="gradeId" @bind:after="OnGradeChanged">
+                                    <option value="0">Cấp 1 (Tiểu học)</option>
+                                    <option value="1">Cấp 2 (THCS)</option>
+                                </select>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <label class="form-label">Lớp</label>
+                                <select class="form-select" @bind="classGrade">
+                                    @if (gradeId == 0)
+                                    {
+                                        <option value="1">Lớp 1</option>
+                                        <option value="2">Lớp 2</option>
+                                        <option value="3">Lớp 3</option>
+                                        <option value="4">Lớp 4</option>
+                                        <option value="5">Lớp 5</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="6">Lớp 6</option>
+                                        <option value="7">Lớp 7</option>
+                                        <option value="8">Lớp 8</option>
+                                        <option value="9">Lớp 9</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 mt-4">
+                            <!-- Nút Đăng nhập dạng submit để nhận phím Enter -->
+                            <button type="submit" class="btn btn-primary py-2 fs-5">
+                                <i class="bi bi-box-arrow-in-right"></i> Đăng nhập
+                            </button>
+                            <!-- Nút Đăng ký phải định nghĩa rõ type="button" tránh bị kích hoạt nhầm khi ấn Enter -->
+                            <button type="button" class="btn btn-outline-success py-2" @onclick="HandleRegister">
+                                <i class="bi bi-person-plus"></i> Đăng ký tài khoản mới
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string username = "";
+    private string fullName = "";
+    private int gradeId = 0;
+    private int classGrade = 5; // Mặc định lớp 5
+
+    private string errorMessage = "";
+    private string successMessage = "";
+
+    // Tự động chuyển danh sách Lớp học khi đổi Cấp học
+    private void OnGradeChanged()
+    {
+        if (gradeId == 0) classGrade = 5;
+        else classGrade = 6;
+    }
+
+    // Xử lý Đăng nhập
+    private async Task HandleLogin()
+    {
+        errorMessage = ""; successMessage = "";
+        if (string.IsNullOrWhiteSpace(username)) { errorMessage = "Vui lòng nhập tên tài khoản để đăng nhập!"; return; }
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/Auth/login", new { Username = username });
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                if (result != null)
+                {
+                    // Cập nhật trạng thái vào AuthService
+                    AuthService.SetLogin(result.User, result.Token);
+                    
+                    await ProtectedLocalStore.SetAsync("userProfile", result.User);
+                    await ProtectedLocalStore.SetAsync("userToken", result.Token);
+                    // Reset thông báo và chuyển hướng
+                    errorMessage = "";
+                    NavManager.NavigateTo("/");
+                    return;
+                }
+            }
+            else
+            {
+                string err = await response.Content.ReadAsStringAsync();
+                errorMessage = $"Đăng nhập thất bại: {err}";
+            }
+        }
+        catch (Exception ex) 
+        { 
+            errorMessage = $"Lỗi kết nối Server: {ex.Message}"; 
+        }
+    }
+
+    // Xử lý Đăng ký tài khoản mới
+    private async Task HandleRegister()
+    {
+        errorMessage = ""; successMessage = "";
+        if (string.IsNullOrWhiteSpace(username)) { errorMessage = "Vui lòng nhập tên tài khoản muốn đăng ký!"; return; }
+
+        string nameToRegister = string.IsNullOrWhiteSpace(fullName) ? username : fullName;
+
+        try
+        {
+            // Gửi đầy đủ thông tin Lớp và Cấp lên Server
+            var req = new { Username = username, FullName = nameToRegister, GradeId = gradeId, ClassGrade = classGrade };
+            var regResponse = await Http.PostAsJsonAsync("api/Users/register", req);
+            
+            if (regResponse.IsSuccessStatusCode)
+            {
+                successMessage = "Đăng ký thành công! Bạn có thể bấm 'Đăng nhập' ngay bây giờ.";
+                // Tự động clear form đăng ký để chuẩn bị cho việc bấm nút Đăng nhập
+                fullName = ""; 
+            }
+            else
+            {
+                string serverError = await regResponse.Content.ReadAsStringAsync();
+                errorMessage = $"Lỗi đăng ký: {serverError}";
+            }
+        }
+        catch (Exception ex) 
+        { 
+            errorMessage = $"Lỗi kết nối Server: {ex.Message}"; 
+        }
+    }
+
+    public class LoginResponse
+    {
+        public string Token { get; set; } = "";
+        public EduAI.Desktop.Services.UserModel User { get; set; } = new();
+    }
+}

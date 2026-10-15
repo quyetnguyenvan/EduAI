@@ -1,0 +1,180 @@
+﻿@inherits LayoutComponentBase
+@inject EduAI.Desktop.Services.AuthService AuthService
+@inject Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage ProtectedLocalStore
+@implements IDisposable
+@using System.Diagnostics
+@using System.IO
+<div class="page" style="background-color: var(--bg-color); min-height: 100vh;">
+    <div class="sidebar modern-sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <article class="content px-4 pt-4 pb-5">
+            @Body
+        </article>
+    </main>
+</div>
+
+<!-- ================= BỘ CSS HIỆN ĐẠI (SAAS DASHBOARD) ================= -->
+<style>
+    :root {
+        --primary-color: #4361ee;
+        --secondary-color: #3f37c9;
+        --bg-color: #f4f7fe;
+        --card-bg: #ffffff;
+        --text-main: #2b3674;
+        --text-muted: #a3aed1;
+    }
+
+    body {
+        background-color: var(--bg-color);
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+        color: var(--text-main);
+    }
+
+    /* 1. Sidebar sang trọng */
+    .modern-sidebar {
+        background: linear-gradient(135deg, #111c44 0%, #1a2035 100%) !important;
+        box-shadow: 4px 0 24px rgba(0,0,0,0.06);
+    }
+    .modern-sidebar .nav-link {
+        border-radius: 12px;
+        margin: 4px 16px;
+        color: #a0aec0 !important;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    .modern-sidebar .nav-link:hover, .modern-sidebar .nav-link.active {
+        background: rgba(255,255,255,0.1);
+        color: #ffffff !important;
+        transform: translateX(6px);
+    }
+
+    /* 2. Thẻ Card nổi mượt mà (Soft UI) */
+    .modern-card {
+        background: var(--card-bg);
+        border-radius: 20px;
+        border: none;
+        box-shadow: 0px 18px 40px rgba(112, 144, 176, 0.12);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .modern-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0px 22px 50px rgba(112, 144, 176, 0.2);
+    }
+
+    /* 3. Bảng dữ liệu (Table) hiện đại không viền */
+    .modern-table {
+        border-collapse: separate;
+        border-spacing: 0 12px;
+    }
+    .modern-table thead th {
+        border: none;
+        color: var(--text-muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
+    }
+    .modern-table tbody tr {
+        background: #ffffff;
+        box-shadow: 0px 5px 14px rgba(0,0,0,0.04);
+        border-radius: 12px;
+        transition: transform 0.2s;
+    }
+    .modern-table tbody tr:hover {
+        transform: scale(1.015);
+    }
+    .modern-table tbody td {
+        border: none;
+        padding: 18px 16px;
+        vertical-align: middle;
+    }
+    .modern-table tbody td:first-child { border-top-left-radius: 12px; border-bottom-left-radius: 12px; }
+    .modern-table tbody td:last-child { border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
+
+    /* 4. Nút bấm Gradient */
+    .btn-gradient-primary {
+        background: linear-gradient(135deg, #4361ee 0%, #3f37c9 100%);
+        color: white;
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 4px 15px rgba(67, 97, 238, 0.3);
+        transition: all 0.3s ease;
+    }
+    .btn-gradient-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(67, 97, 238, 0.4);
+        color: white;
+    }
+
+    /* 5. Khối thống kê nổi bật */
+    .stat-box {
+        border-radius: 16px;
+        padding: 24px;
+        border: none;
+    }
+    .stat-blue { background: #e0e8ff; color: #4361ee; }
+    .stat-green { background: #e0f8e9; color: #05cd99; }
+    .stat-orange { background: #fff3e0; color: #ff9800; }
+</style>
+<!-- ================= KẾT THÚC CSS ================= -->
+
+@code {
+    protected override void OnInitialized()
+    {
+        AuthService.OnChange += StateHasChanged;
+        StartApiServer();
+    }
+    private void StartApiServer()
+    {
+        try
+        {
+            var apiPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "api", "EduAI.Api.exe");
+            
+            // Kiểm tra xem tiến trình API đã chạy chưa để tránh bật trùng lặp nhiều lần
+            var existingProcesses = Process.GetProcessesByName("EduAI.Api");
+            if (existingProcesses.Length == 0 && File.Exists(apiPath))
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = apiPath,
+                    UseShellExecute = false,
+                    CreateNoWindow = true // Chạy ngầm ẩn cửa sổ dòng lệnh đen
+                };
+                Process.Start(startInfo);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Không thể tự khởi động API: {ex.Message}");
+        }
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (AuthService.CurrentUser == null)
+            {
+                try 
+                {
+                    var userStore = await ProtectedLocalStore.GetAsync<EduAI.Desktop.Services.UserModel>("userProfile");
+                    var tokenStore = await ProtectedLocalStore.GetAsync<string>("userToken");
+
+                    if (userStore.Success && userStore.Value != null)
+                    {
+                        AuthService.SetLogin(userStore.Value, tokenStore.Value ?? "");
+                        StateHasChanged(); 
+                    }
+                }
+                catch { }
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        AuthService.OnChange -= StateHasChanged;
+    }
+}

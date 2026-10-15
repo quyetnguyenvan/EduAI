@@ -1,0 +1,353 @@
+﻿@page "/"
+@page "/exam/{SubjectId:int}/{LevelId:int}"
+@rendermode InteractiveServer
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject EduAI.Desktop.Services.AuthService AuthService
+@implements IDisposable
+
+<PageTitle>Luyện tập @SubjectName - @LevelName - Lớp @ClassGrade</PageTitle>
+
+<!-- CHẶN ĐIỀU HƯỚNG NỘI BỘ KHI ĐANG LÀM BÀI -->
+@if (isTesting)
+{
+    <NavigationLock OnBeforeInternalNavigation="OnBeforeInternalNavigation" />
+}
+
+<div class="container mt-4 mb-5">
+    <!-- HÀNG TIÊU ĐỀ VÀ NÚT ĐIỀU KHIỂN -->
+    <div class="row align-items-center mb-4">
+        <div class="col-md-7">
+            <h2 class="text-primary mb-0">
+                <i class="bi bi-journal-text"></i> Luyện tập @SubjectName - @LevelName - Lớp @ClassGrade
+            </h2>
+        </div>
+        <div class="col-md-5 text-end">
+            @if (!isTesting && !isSubmitted)
+            {
+                <button class="btn btn-success btn-lg px-4 shadow-sm" @onclick="StartTest" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        <span> Đang chuẩn bị đề...</span>
+                    }
+                    else
+                    {
+                        <span><i class="bi bi-play-fill"></i> Bắt đầu làm bài</span>
+                    }
+                </button>
+            }
+            else if (isTesting)
+            {
+                <button class="btn btn-danger btn-lg px-4 shadow-sm" @onclick="SubmitTest" disabled="@isSaving">
+                    <i class="bi bi-check2-circle"></i> @(isSaving ? "Đang chấm điểm..." : "Nộp bài & Chấm điểm")
+                </button>
+            }
+        </div>
+    </div>
+    <hr />
+
+    <!-- ĐỒNG HỒ ĐẾM NGƯỢC 30 PHÚT -->
+    @if (isTesting)
+    {
+        <div class="alert alert-warning d-flex justify-content-between align-items-center shadow-sm mb-4">
+            <span class="fw-bold fs-5"><i class="bi bi-stopwatch"></i> Thời gian làm bài còn lại:</span>
+            <span class="badge bg-danger fs-4 px-3 py-2">@FormatTime(timeRemaining)</span>
+        </div>
+    }
+
+    <!-- GIAO DIỆN TRƯỚC KHI BẮT ĐẦU -->
+    @if (!isTesting && !isSubmitted && questions == null)
+    {
+        <div class="card shadow-sm p-5 text-center bg-light border-0">
+            <h4 class="text-secondary mb-3">Sẵn sàng kiểm tra năng lực?</h4>
+            <p class="text-muted">Nhấn nút <strong>"Bắt đầu làm bài"</strong> ở góc trên bên phải để hệ thống phát đề và bắt đầu tính giờ (30 phút).</p>
+        </div>
+    }
+    else if (questions == null)
+    {
+        <div class="spinner-border text-primary" role="status"></div>
+        <span class="ms-2">Đang tải đề thi...</span>
+    }
+    else if (questions.Count == 0)
+    {
+        <div class="alert alert-warning">Chưa có câu hỏi nào. Hãy nhờ Admin dùng AI tạo thêm nhé![cite: 14]</div>
+    }
+    else
+    {
+        if (isSubmitted)
+        {
+            <div class="alert alert-success shadow-sm mb-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Kết quả: Bạn đúng @score / @questions.Count câu!</h4>
+                    <button class="btn btn-primary" @onclick="ResetPageState">Làm bài mới</button>
+                </div>
+                @if (isSavedSuccess)
+                {
+                    <hr />
+                    <p class="mb-0 text-success fw-bold"><i class="bi bi-check-circle-fill"></i> Đã lưu điểm vào hệ thống!</p>
+                }
+            </div>
+        }
+
+        <!-- KHÓA TOÀN BỘ CÂU HỎI KHI CHƯA BẮT ĐẦU HOẶC ĐÃ NỘP XONG -->
+        <fieldset disabled="@(!isTesting)">
+            @foreach (var q in questions.Select((value, index) => new { index, value }))
+            {
+                <div class="card mb-4 shadow-sm border-@(isSubmitted ? (IsCorrect(q.value.Id) ? "success" : "danger") : "")">
+                    <div class="card-body">
+                        <h5 class="card-title">Câu @(q.index + 1): @q.value.Content</h5>
+                        <div class="mt-3">
+                            @foreach (var opt in q.value.Options)
+                            {
+                                string labelClass = "";
+                                if (isSubmitted)
+                                {
+                                    if (opt.IsCorrect) labelClass = "text-success fw-bold";
+                                    else if (userAnswers.GetValueOrDefault(q.value.Id) == opt.Id) labelClass = "text-danger text-decoration-line-through";
+                                }
+
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" 
+                                           name="question_@q.value.Id" 
+                                           id="opt_@opt.Id"
+                                           disabled="@isSubmitted"
+                                           checked="@(userAnswers.ContainsKey(q.value.Id) && userAnswers[q.value.Id] == opt.Id)"
+                                           @onchange="@(() => SelectAnswer(q.value.Id, opt.Id))">
+                                    <label class="form-check-label @labelClass" for="opt_@opt.Id">
+                                        @opt.Content
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                        
+                        @if (isSubmitted && !string.IsNullOrEmpty(q.value.DetailedSolution))
+                        {
+                            <div class="alert alert-info mt-3 mb-0 py-2">
+                                <strong>💡 Lời giải:</strong> @q.value.DetailedSolution
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </fieldset>
+        
+        @if (isTesting)
+        {
+            <button class="btn btn-danger btn-lg w-100 shadow-sm mb-5" @onclick="SubmitTest" disabled="@isSaving">
+                <i class="bi bi-check2-circle"></i> @(isSaving ? "Đang chấm và lưu điểm..." : "Nộp bài & Chấm điểm")
+            </button>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public int SubjectId { get; set; } = 0;
+    [Parameter] public int LevelId { get; set; } = 0;
+
+    private bool isTesting = false;
+    private bool isLoading = false;
+    private int timeRemaining = 1800; // 30 phút = 1800 giây
+    private System.Threading.Timer? timer;
+
+    private string SubjectName => SubjectId switch
+    {
+        0 => "Toán",
+        1 => AuthService.CurrentUser?.ClassGrade <= 5 ? "Tiếng Việt" : "Ngữ Văn",
+        2 => "Tiếng Anh",
+        _ => "Khác"
+    };
+    private string LevelName => LevelId == 0 ? "Cơ bản" : "Nâng cao";
+    private string ClassGrade => AuthService.CurrentUser?.ClassGrade.ToString() ?? "...";
+
+    private List<QuestionModel>? questions;
+    private Dictionary<int, int> userAnswers = new();
+    private bool isSubmitted = false;
+    private bool isSaving = false;
+    private bool isSavedSuccess = false;
+    private int score = 0;
+
+    // Khi chuyển môn hoặc thay đổi URL tham số, reset lại trạng thái chờ
+    protected override async Task OnParametersSetAsync()
+    {
+        ResetPageState();
+        await Task.CompletedTask;
+    }
+
+    private void ResetPageState()
+    {
+        isTesting = false;
+        isSubmitted = false;
+        isSavedSuccess = false;
+        questions = null;
+        userAnswers.Clear();
+        timer?.Change(Timeout.Infinite, Timeout.Infinite);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("eval", @"
+                window.addEventListener('beforeunload', function (e) {
+                    if (window.isExamining) {
+                        e.preventDefault();
+                        e.returnValue = '';
+                    }
+                });
+            ");
+        }
+
+        if (questions != null && questions.Count > 0)
+        {
+            await JS.InvokeVoidAsync("renderMath");
+        }
+    }
+
+    // Khi bấm "Bắt đầu làm bài", lúc này mới gọi API lấy đề thi và kích hoạt đồng hồ
+    private async Task StartTest()
+    {
+        isLoading = true;
+        int userClass = AuthService.CurrentUser?.ClassGrade ?? 5;
+        string url = $"api/Questions/generate-test?subjectId={SubjectId}&levelId={LevelId}&classGrade={userClass}&count=10";
+        
+        try
+        {
+            questions = await Http.GetFromJsonAsync<List<QuestionModel>>(url);
+            
+            if (questions != null && questions.Any())
+            {
+                isTesting = true;
+                timeRemaining = 1800; // Đặt đúng 30 phút
+                userAnswers.Clear();
+
+                await JS.InvokeVoidAsync("eval", "window.isExamining = true;");
+
+                timer?.Dispose();
+                timer = new System.Threading.Timer(async _ =>
+                {
+                    if (timeRemaining > 0)
+                    {
+                        timeRemaining--;
+                        await InvokeAsync(StateHasChanged);
+                    }
+                    else
+                    {
+                        timer?.Change(Timeout.Infinite, Timeout.Infinite);
+                        await SubmitTest();
+                    }
+                }, null, 1000, 1000);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Lỗi tải đề thi: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnBeforeInternalNavigation(LocationChangingContext context)
+    {
+        if (isTesting)
+        {
+            bool confirmed = await JS.InvokeAsync<bool>("confirm", "Bạn đang trong thời gian làm bài thi! Nếu rời đi, bài thi sẽ bị hủy. Bạn có chắc chắn muốn thoát?");
+            if (!confirmed)
+            {
+                context.PreventNavigation();
+            }
+            else
+            {
+                isTesting = false;
+                await JS.InvokeVoidAsync("eval", "window.isExamining = false;");
+                timer?.Change(Timeout.Infinite, Timeout.Infinite);
+            }
+        }
+    }
+
+    private void SelectAnswer(int questionId, int optionId) => userAnswers[questionId] = optionId;
+
+    private async Task SubmitTest()
+    {
+        if (!isTesting) return;
+
+        timer?.Change(Timeout.Infinite, Timeout.Infinite);
+        isTesting = false;
+        
+        await JS.InvokeVoidAsync("eval", "window.isExamining = false;");
+
+        isSaving = true;
+        score = 0;
+        
+        foreach (var q in questions!)
+        {
+            if (IsCorrect(q.Id)) score++;
+        }
+        isSubmitted = true;
+
+        var testResult = new TestResultModel
+        {
+            UserId = AuthService.CurrentUser?.Id ?? 1,
+            Subject = SubjectId,
+            Level = LevelId,
+            Score = score,
+            TotalQuestions = questions.Count
+        };
+
+        var response = await Http.PostAsJsonAsync("api/Users/submit-result", testResult);
+        if (response.IsSuccessStatusCode)
+        {
+            isSavedSuccess = true;
+        }
+        
+        isSaving = false;
+        StateHasChanged();
+    }
+
+    private bool IsCorrect(int questionId)
+    {
+        if (userAnswers.TryGetValue(questionId, out int selectedOptId))
+        {
+            var q = questions!.First(x => x.Id == questionId);
+            return q.Options.Any(o => o.Id == selectedOptId && o.IsCorrect);
+        }
+        return false;
+    }
+
+    private string FormatTime(int seconds)
+    {
+        var span = TimeSpan.FromSeconds(seconds);
+        return span.ToString(@"mm\:ss");
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
+    }
+
+    public class QuestionModel
+    {
+        public int Id { get; set; }
+        public string? Content { get; set; }
+        public string? DetailedSolution { get; set; }
+        public List<OptionModel> Options { get; set; } = new();
+    }
+    
+    public class OptionModel
+    {
+        public int Id { get; set; }
+        public string? Content { get; set; }
+        public bool IsCorrect { get; set; }
+    }
+
+    public class TestResultModel
+    {
+        public int UserId { get; set; }
+        public int Subject { get; set; }
+        public int Level { get; set; }
+        public int Score { get; set; }
+        public int TotalQuestions { get; set; }
+    }
+}

@@ -1,0 +1,849 @@
+@page "/admin"
+@inject HttpClient Http
+@using System.Net.Http.Json
+@using System.Text.Json
+
+<PageTitle>Quản trị Ngân hàng Câu hỏi - EduAI</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold m-0" style="color: var(--text-main);">
+            <i class="bi bi-shield-lock-fill text-primary me-2"></i> Hệ thống Quản trị (EduAI Admin)
+        </h2>
+    </div>
+
+    <!-- THANH TAB ĐIỀU HƯỚNG HIỆN ĐẠI (DẠNG PILL) -->
+    <div class="bg-white p-2 rounded-pill shadow-sm d-inline-block mb-4 border border-light">
+        <ul class="nav nav-pills nav-fill">
+            <li class="nav-item">
+                <button class="nav-link rounded-pill px-4 py-2 fw-bold transition @(activeTab == 1 ? "active text-white shadow" : "text-muted")"
+                        style="@(activeTab == 1 ? "background: linear-gradient(135deg, #4361ee 0%, #3f37c9 100%);" : "background: transparent;")"
+                        @onclick="() => activeTab = 1">
+                    <i class="bi bi-cpu me-1"></i> Tạo AI & Kho
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link rounded-pill px-4 py-2 fw-bold transition @(activeTab == 5 ? "active text-white shadow" : "text-muted")"
+                        style="@(activeTab == 5 ? "background: linear-gradient(135deg, #4361ee 0%, #3f37c9 100%);" : "background: transparent;")"
+                        @onclick="LoadUsersForAdmin">
+                    <i class="bi bi-shield-lock me-1"></i> Phân quyền Tạo đề
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link rounded-pill px-4 py-2 fw-bold transition @(activeTab == 2 ? "active text-white shadow" : "text-muted")"
+                        style="@(activeTab == 2 ? "background: linear-gradient(135deg, #4361ee 0%, #3f37c9 100%);" : "background: transparent;")"
+                        @onclick="() => activeTab = 2">
+                    <i class="bi bi-journal-text me-1"></i> Trọng tâm (TopicHint)
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link rounded-pill px-4 py-2 fw-bold transition @(activeTab == 3 ? "active text-white shadow" : "text-muted")"
+                        style="@(activeTab == 3 ? "background: linear-gradient(135deg, #4361ee 0%, #3f37c9 100%);" : "background: transparent;")"
+                        @onclick="() => activeTab = 3">
+                    <i class="bi bi-shield-check me-1"></i> Quy tắc (SubjectRules)
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link rounded-pill px-4 py-2 fw-bold transition @(activeTab == 4 ? "active text-white shadow" : "text-muted")"
+                        style="@(activeTab == 4 ? "background: linear-gradient(135deg, #4361ee 0%, #3f37c9 100%);" : "background: transparent;")"
+                        @onclick="LoadStudentResults">
+                    <i class="bi bi-graph-up me-1"></i> Kết quả Học sinh
+                </button>
+            </li>
+        </ul>
+    </div>
+
+    <!-- ================= TAB 1: TẠO AI & THỐNG KÊ ================= -->
+    @if (activeTab == 1)
+    {
+        <div class="row g-4">
+            <!-- Cột trái: Form AI -->
+            <div class="col-xl-4 col-lg-5">
+                <div class="modern-card p-4 h-100">
+                    <h5 class="fw-bold border-bottom pb-3 mb-4 text-dark">
+                        <i class="bi bi-robot text-primary me-2"></i> Tạo câu hỏi tự động (AI)
+                    </h5>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Cấp học / Lớp</label>
+                        <select class="form-select border-0 bg-light shadow-sm rounded-3 py-2" @bind="genReq.ClassGrade">
+                            @for (int i = 1; i <= 9; i++) { <option value="@i">Lớp @i</option> }
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Môn học</label>
+                        <select class="form-select border-0 bg-light shadow-sm rounded-3 py-2" @bind="genReq.SubjectId">
+                            <option value="0">Toán</option>
+                            <option value="1">Tiếng Việt / Ngữ Văn</option>
+                            <option value="2">Tiếng Anh</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Giai đoạn kiến thức</label>
+                        <select class="form-select border-0 bg-light shadow-sm rounded-3 py-2" @bind="genReq.PeriodId">
+                            <option value="0">Giữa học kỳ 1</option>
+                            <option value="1">Cuối học kỳ 1</option>
+                            <option value="2">Giữa học kỳ 2</option>
+                            <option value="3">Cuối học kỳ 2</option>
+                        </select>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6 mb-4">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Độ khó</label>
+                            <select class="form-select border-0 bg-light shadow-sm rounded-3 py-2" @bind="genReq.LevelId">
+                                <option value="0">Cơ bản</option>
+                                <option value="1">Nâng cao</option>
+                            </select>
+                        </div>
+                        <div class="col-6 mb-4">
+                            <label class="form-label fw-bold text-muted small text-uppercase">Số lượng</label>
+                            <input type="number" class="form-control border-0 bg-light shadow-sm rounded-3 py-2" @bind="genReq.Count" min="1" max="20" />
+                        </div>
+                    </div>
+
+                    <div class="p-3 mb-4 rounded-3 d-flex justify-content-between align-items-center shadow-sm" style="background-color: #f8fafc; border: 1px dashed #cbd5e1;">
+                        <span class="fw-bold text-dark"><i class="bi bi-box-seam text-secondary me-2"></i>Đã có trong kho:</span>
+                        <span class="badge @(GetCurrentCount() == 0 ? "bg-danger" : "bg-success") fs-6 rounded-pill px-3">
+                            @GetCurrentCount() câu
+                        </span>
+                    </div>
+
+                    <button class="btn-gradient-primary w-100 py-3 fs-6 fw-bold shadow" @onclick="GenerateAiQuestions" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            <span>Đang phân tích & Gọi AI...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-cloud-arrow-up-fill me-2"></i><span>Bắt đầu Tạo & Lưu CSDL</span>
+                        }
+                    </button>
+
+                    @if (!string.IsNullOrEmpty(alertMessage))
+                    {
+                        <div class="alert mt-4 shadow-sm border-0 @(isError ? "alert-danger" : "alert-success")" role="alert">
+                            <i class="bi @(isError ? "bi-exclamation-triangle-fill" : "bi-check-circle-fill") me-2"></i>@alertMessage
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Cột phải: Bảng Thống kê kho -->
+            <div class="col-xl-8 col-lg-7">
+                <div class="modern-card p-4 h-100">
+                    <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
+                        <h5 class="fw-bold m-0 text-dark"><i class="bi bi-database-fill text-success me-2"></i>Thống kê kho dữ liệu hiện tại</h5>
+                        <button class="btn btn-sm btn-light rounded-pill px-3 shadow-sm border-0 fw-bold text-muted" @onclick="LoadStatistics">
+                            <i class="bi bi-arrow-clockwise me-1"></i> Làm mới
+                        </button>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        @if (!string.IsNullOrEmpty(statError))
+                        {
+                            <div class="alert alert-danger border-0 shadow-sm"><i class="bi bi-x-circle-fill me-2"></i>@statError</div>
+                        }
+                        else if (statistics == null)
+                        {
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-primary opacity-50" role="status"></div>
+                            </div>
+                        }
+                        else if (!statistics.Any())
+                        {
+                            <div class="text-center py-5">
+                                <i class="bi bi-inbox text-muted opacity-25" style="font-size: 4rem;"></i>
+                                <p class="text-muted fw-bold mt-3">Kho dữ liệu hiện đang trống.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <table class="table modern-table w-100 align-middle text-center">
+                                <thead>
+                                    <tr>
+                                        <th class="text-start ps-4">Khối Lớp</th>
+                                        <th>Môn Học</th>
+                                        <th>Độ Khó</th>
+                                        <th class="pe-4">Số Câu Hỏi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var stat in statistics)
+                                    {
+                                        <tr>
+                                            <td class="text-start ps-4 fw-bold text-dark">Lớp @stat.ClassGrade</td>
+                                            <td>
+                                                <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill border border-primary border-opacity-25">
+                                                    @stat.SubjectName
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge px-3 py-2 rounded-pill border @(stat.LevelId == 0 ? "bg-info bg-opacity-10 text-info border-info border-opacity-25" : "bg-warning bg-opacity-10 text-warning border-warning border-opacity-25")">
+                                                    @stat.LevelName
+                                                </span>
+                                            </td>
+                                            <td class="pe-4">
+                                                <span class="fs-5 fw-bold text-primary">@stat.TotalQuestions</span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ================= TAB 2: QUẢN LÝ TRỌNG TÂM (TOPICHINT) ================= -->
+    @if (activeTab == 2)
+    {
+        <div class="modern-card p-4">
+            <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
+                <h5 class="fw-bold m-0 text-dark"><i class="bi bi-journal-check text-info me-2"></i>Quản lý Trọng tâm (TopicHint)</h5>
+                <button class="btn btn-sm btn-light rounded-pill px-3 shadow-sm border-0 fw-bold text-muted" @onclick="LoadTopicConfigs">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Làm mới
+                </button>
+            </div>
+
+            <!-- Khu vực Thêm Mới -->
+            <div class="bg-light p-4 rounded-4 mb-5 border-0 shadow-sm">
+                <h6 class="fw-bold text-primary mb-3">Thêm / Cập nhật Trọng tâm ôn tập</h6>
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-2">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Khối Lớp</label>
+                        <select class="form-select border-0 shadow-sm rounded-3 py-2" @bind="newTopic.ClassGrade">
+                            @for (int i = 1; i <= 9; i++) { <option value="@i">Lớp @i</option> }
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Môn Học</label>
+                        <select class="form-select border-0 shadow-sm rounded-3 py-2" @bind="newTopic.SubjectId">
+                            <option value="0">Toán</option>
+                            <option value="1">Tiếng Việt / Ngữ Văn</option>
+                            <option value="2">Tiếng Anh</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Học kỳ</label>
+                        <select class="form-select border-0 shadow-sm rounded-3 py-2" @bind="newTopic.PeriodId">
+                            <option value="0">Giữa HK 1</option>
+                            <option value="1">Cuối HK 1</option>
+                            <option value="2">Giữa HK 2</option>
+                            <option value="3">Cuối HK 2</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Nội dung (TopicHint)</label>
+                        <input class="form-control border-0 shadow-sm rounded-3 py-2" @bind="newTopic.TopicHint" placeholder="VD: Ôn tập phép cộng trừ trong phạm vi 1.000..." />
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-success w-100 py-2 fw-bold shadow-sm rounded-3" @onclick="SaveTopicConfig">
+                            <i class="bi bi-plus-circle me-1"></i> Lưu lại
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table modern-table w-100 align-middle">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">Khối Lớp</th>
+                            <th>Môn Học</th>
+                            <th>Học Kỳ</th>
+                            <th>Trọng tâm Kiến thức</th>
+                            <th class="text-center pe-4">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (topicList == null)
+                        {
+                            <tr><td colspan="5" class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải...</td></tr>
+                        }
+                        else if (!topicList.Any())
+                        {
+                            <tr><td colspan="5" class="text-center py-4 text-muted fst-italic">Chưa có dữ liệu cấu hình.</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var item in topicList)
+                            {
+                                <tr>
+                                    <td class="ps-4 fw-bold text-dark">Lớp @item.ClassGrade</td>
+                                    <td>
+                                        <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill">
+                                            @(item.SubjectId == 0 ? "Toán" : item.SubjectId == 1 ? "Tiếng Việt/Ngữ Văn" : "Tiếng Anh")
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary bg-opacity-10 text-secondary px-3 py-2 rounded-pill">
+                                            @(item.PeriodId == 0 ? "Giữa HK1" : item.PeriodId == 1 ? "Cuối HK1" : item.PeriodId == 2 ? "Giữa HK2" : "Cuối HK2")
+                                        </span>
+                                    </td>
+                                    <td class="text-muted">@item.TopicHint</td>
+                                    <td class="text-center pe-4">
+                                        <button class="btn btn-sm btn-outline-danger rounded-pill px-3 shadow-sm" @onclick="() => DeleteTopicConfig(item.Id)">
+                                            <i class="bi bi-trash3-fill"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- ================= TAB 3: QUẢN LÝ QUY TẮC CHUNG (SUBJECTRULES) ================= -->
+    @if (activeTab == 3)
+    {
+        <div class="modern-card p-4">
+            <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
+                <h5 class="fw-bold m-0 text-dark"><i class="bi bi-shield-check text-warning me-2"></i>Quản lý Quy tắc (SubjectRules)</h5>
+                <button class="btn btn-sm btn-light rounded-pill px-3 shadow-sm border-0 fw-bold text-muted" @onclick="LoadSubjectRules">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Làm mới
+                </button>
+            </div>
+
+            <!-- Khu vực Thêm Mới -->
+            <div class="bg-light p-4 rounded-4 mb-5 border-0 shadow-sm">
+                <h6 class="fw-bold text-primary mb-3">Thêm Quy tắc Áp dụng (Có thể chọn áp dụng chung cho mọi môn)</h6>
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Phạm vi áp dụng</label>
+                        <select class="form-select border-0 shadow-sm rounded-3 py-2" @bind="newRule.SubjectId">
+                            <option value="-1">🌐 Tất cả các môn</option>
+                            <option value="0">Toán</option>
+                            <option value="1">Tiếng Việt / Ngữ Văn</option>
+                            <option value="2">Tiếng Anh</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Tên Quy Tắc</label>
+                        <input class="form-control border-0 shadow-sm rounded-3 py-2" @bind="newRule.RuleName" placeholder="VD: Định dạng JSON chuẩn..." />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Nội dung Quy tắc</label>
+                        <input class="form-control border-0 shadow-sm rounded-3 py-2" @bind="newRule.RuleContent" placeholder="VD: Tuyệt đối không kèm text..." />
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-success w-100 py-2 fw-bold shadow-sm rounded-3" @onclick="SaveSubjectRule">
+                            <i class="bi bi-plus-circle me-1"></i> Thêm
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table modern-table w-100 align-middle">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">Phạm vi áp dụng</th>
+                            <th>Tên Quy Tắc</th>
+                            <th>Nội dung Chi tiết</th>
+                            <th class="text-center pe-4">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (ruleList == null)
+                        {
+                            <tr><td colspan="4" class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Đang tải...</td></tr>
+                        }
+                        else if (!ruleList.Any())
+                        {
+                            <tr><td colspan="4" class="text-center py-4 text-muted fst-italic">Chưa có quy tắc nào.</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var rule in ruleList)
+                            {
+                                <tr>
+                                    <td class="ps-4">
+                                        @if (rule.SubjectId == -1)
+                                        {
+                                            <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill fw-bold border border-success border-opacity-25"><i class="bi bi-globe me-1"></i> Tất cả các môn</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary px-3 py-2 rounded-pill">@(rule.SubjectId == 0 ? "Toán" : rule.SubjectId == 1 ? "Tiếng Việt/Ngữ Văn" : "Tiếng Anh")</span>
+                                        }
+                                    </td>
+                                    <td class="fw-bold text-dark">@rule.RuleName</td>
+                                    <td class="text-muted">@rule.RuleContent</td>
+                                    <td class="text-center pe-4">
+                                        <button class="btn btn-sm btn-outline-danger rounded-pill px-3 shadow-sm" @onclick="() => DeleteSubjectRule(rule.Id)">
+                                            <i class="bi bi-trash3-fill"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- ================= TAB 4: THỐNG KÊ KẾT QUẢ HỌC SINH ================= -->
+    @if (activeTab == 4)
+    {
+        <div class="modern-card p-4">
+            <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
+                <h5 class="fw-bold m-0 text-dark"><i class="bi bi-graph-up text-primary me-2"></i>Thống kê Lịch sử Làm bài</h5>
+                <button class="btn btn-sm btn-light rounded-pill px-3 shadow-sm border-0 fw-bold text-muted" @onclick="LoadStudentResults">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Làm mới
+                </button>
+            </div>
+
+            <div class="table-responsive mt-3">
+                @if (studentResults == null)
+                {
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary opacity-50" role="status"></div>
+                        <p class="mt-3 text-muted fw-bold">Đang tổng hợp dữ liệu...</p>
+                    </div>
+                }
+                else if (!studentResults.Any())
+                {
+                    <div class="text-center py-5">
+                        <i class="bi bi-clipboard-data text-muted opacity-25" style="font-size: 4rem;"></i>
+                        <p class="text-muted fw-bold mt-3">Chưa có dữ liệu bài thi nào.</p>
+                    </div>
+                }
+                else
+                {
+                    <table class="table modern-table w-100 align-middle">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">Thời gian</th>
+                                <th>Học sinh</th>
+                                <th class="text-center">Khối lớp</th>
+                                <th>Môn học</th>
+                                <th>Độ khó</th>
+                                <th class="text-center">Đúng</th>
+                                <th class="text-center pe-4">Tỷ lệ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in studentResults)
+                            {
+                                <tr>
+                                    <td class="ps-4 text-muted small fw-bold">
+                                        <i class="bi bi-calendar-check text-primary me-1"></i> @item.CompletedAt.ToString("dd/MM HH:mm")
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold text-dark">@item.FullName</div>
+                                        <small class="text-muted">@@@item.Username</small>
+                                    </td>
+                                    <td class="text-center fw-bold text-muted">Lớp @item.ClassGrade</td>
+                                    <td>
+                                        <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-1 rounded-pill border border-primary border-opacity-25">
+                                            @(item.Subject == 0 ? "Toán" : item.Subject == 1 ? "Ngữ Văn" : "Tiếng Anh")
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge @(item.Level == 0 ? "bg-info bg-opacity-10 text-info border-info" : "bg-warning bg-opacity-10 text-warning border-warning") border border-opacity-25 px-3 py-1 rounded-pill">
+                                            @(item.Level == 0 ? "Cơ bản" : "Nâng cao")
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2 rounded-pill fs-6">
+                                            @item.Score / @item.TotalQuestions
+                                        </span>
+                                    </td>
+                                    <td class="text-center pe-4">
+                                        @{ double percent = item.TotalQuestions > 0 ? (double)item.Score / item.TotalQuestions * 100 : 0; }
+                                        <span class="fw-bold fs-5 @(percent >= 80 ? "text-success" : (percent >= 50 ? "text-warning" : "text-danger"))">
+                                            @percent.ToString("0.#")%
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    }
+    <!-- ================= TAB 5: PHÂN QUYỀN TÀI KHOẢN ================= -->
+    @if (activeTab == 5)
+    {
+        <div class="modern-card p-4">
+            <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
+                <h5 class="fw-bold m-0 text-dark"><i class="bi bi-shield-lock-fill text-danger me-2"></i>Quản lý Phân quyền Tạo đề cho Thành viên</h5>
+                <button class="btn btn-sm btn-light rounded-pill px-3 shadow-sm border-0 fw-bold text-muted" @onclick="LoadUsersForAdmin">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Làm mới
+                </button>
+            </div>
+
+            <div class="table-responsive mt-3">
+                @if (userList == null)
+                {
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary opacity-50" role="status"></div>
+                        <p class="mt-3 text-muted fw-bold">Đang tải danh sách tài khoản...</p>
+                    </div>
+                }
+                else if (!userList.Any())
+                {
+                    <div class="text-center py-5">
+                        <i class="bi bi-people text-muted opacity-25" style="font-size: 4rem;"></i>
+                        <p class="text-muted fw-bold mt-3">Không có tài khoản nào trong hệ thống.</p>
+                    </div>
+                }
+                else
+                {
+                    <table class="table modern-table w-100 align-middle">
+                        <thead>
+                            <tr>
+                                <th class="ps-4">ID</th>
+                                <th>Tên đăng nhập</th>
+                                <th>Họ và tên</th>
+                                <th class="text-center">Lớp</th>
+                                <th>Vai trò</th>
+                                <th class="text-center">Trạng thái quyền</th>
+                                <th class="text-end pe-4">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var u in userList)
+                            {
+                                <tr>
+                                    <td class="ps-4 fw-bold">@u.Id</td>
+                                    <td>@@@u.Username</td>
+                                    <td class="fw-bold text-dark">@u.FullName</td>
+                                    <td class="text-center">Lớp @u.ClassGrade</td>
+                                    <td>
+                                        <span class="badge @(u.Role == "Admin" ? "bg-danger" : "bg-secondary") bg-opacity-10 text-@(u.Role == "Admin" ? "danger" : "secondary") px-3 py-1 rounded-pill">
+                                            @u.Role
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (u.CanCreateExam)
+                                        {
+                                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2 rounded-pill">
+                                                <i class="bi bi-check-circle-fill me-1"></i> Được phép tạo đề
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-light text-muted border px-3 py-2 rounded-pill">
+                                                Không có quyền
+                                            </span>
+                                        }
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        @if (u.Username.ToLower() != "admin")
+                                        {
+                                            <button class="btn btn-sm @(u.CanCreateExam ? "btn-outline-danger" : "btn-outline-success") rounded-pill px-3 shadow-sm fw-bold"
+                                                    @onclick="() => ToggleUserPermission(u.Username)">
+                                                @(u.CanCreateExam ? "Thu hồi quyền" : "Cấp quyền tạo đề")
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small fst-italic">Tối cao (Admin)</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private int activeTab = 1;
+
+    public class GenerateRequest
+    {
+        public int SubjectId { get; set; } = 0;
+        public int PeriodId { get; set; }
+        public int LevelId { get; set; } = 0;
+        public int ClassGrade { get; set; } = 6;
+        public int Count { get; set; } = 10;
+    }
+
+    public class QuestionStat
+    {
+        public int ClassGrade { get; set; }
+        public int SubjectId { get; set; }
+        public string SubjectName { get; set; } = "";
+        public int LevelId { get; set; }
+        public string LevelName { get; set; } = "";
+        public int TotalQuestions { get; set; }
+    }
+
+    public class TopicConfigModel
+    {
+        public int Id { get; set; }
+        public int ClassGrade { get; set; } = 3;
+        public int SubjectId { get; set; } = 0;
+        public int PeriodId { get; set; } = 0;
+        public string TopicHint { get; set; } = "";
+    }
+
+    public class SubjectRuleModel
+    {
+        public int Id { get; set; }
+        public int SubjectId { get; set; } = -1;
+        public string RuleName { get; set; } = "";
+        public string RuleContent { get; set; } = "";
+    }
+
+    public class StudentResultModel
+    {
+        public int Id { get; set; }
+        public string Username { get; set; } = "";
+        public string FullName { get; set; } = "";
+        public int ClassGrade { get; set; }
+        public int Subject { get; set; }
+        public int Level { get; set; }
+        public int Score { get; set; }
+        public int TotalQuestions { get; set; }
+        public DateTime CompletedAt { get; set; }
+    }
+
+    private GenerateRequest genReq = new GenerateRequest();
+    private List<QuestionStat>? statistics;
+    private List<TopicConfigModel>? topicList;
+    private List<SubjectRuleModel>? ruleList;
+    private List<StudentResultModel>? studentResults;
+
+    private TopicConfigModel newTopic = new TopicConfigModel();
+    private SubjectRuleModel newRule = new SubjectRuleModel();
+
+    private bool isLoading = false;
+    private string alertMessage = "";
+    private bool isError = false;
+    private string statError = "";
+    
+    private readonly string apiBaseUrl = "http://localhost:5033/api";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStatistics();
+        await LoadTopicConfigs();
+        await LoadSubjectRules();
+    }
+
+    private async Task LoadStatistics()
+    {
+        try
+        {
+            statError = "";
+            statistics = await Http.GetFromJsonAsync<List<QuestionStat>>($"{apiBaseUrl}/Questions/statistics");
+        }
+        catch (Exception ex)
+        {
+            statError = $"Lỗi tải thống kê: {ex.Message}";
+            statistics = new List<QuestionStat>();
+        }
+    }
+
+    private async Task LoadTopicConfigs()
+    {
+        try
+        {
+            topicList = await Http.GetFromJsonAsync<List<TopicConfigModel>>($"{apiBaseUrl}/TopicConfigs");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Lỗi tải trọng tâm: {ex.Message}");
+        }
+    }
+
+    private async Task LoadSubjectRules()
+    {
+        try
+        {
+            ruleList = await Http.GetFromJsonAsync<List<SubjectRuleModel>>($"{apiBaseUrl}/SubjectRules");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Lỗi tải quy tắc chung: {ex.Message}");
+        }
+    }
+
+    private async Task LoadStudentResults()
+    {
+        activeTab = 4;
+        try
+        {
+            studentResults = await Http.GetFromJsonAsync<List<StudentResultModel>>($"{apiBaseUrl}/Users/all-results");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Lỗi tải kết quả học sinh: {ex.Message}");
+            studentResults = new List<StudentResultModel>();
+        }
+    }
+
+    private async Task SaveTopicConfig()
+    {
+        if (string.IsNullOrWhiteSpace(newTopic.TopicHint)) return;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync($"{apiBaseUrl}/TopicConfigs", newTopic);
+            if (response.IsSuccessStatusCode)
+            {
+                newTopic.TopicHint = "";
+                await LoadTopicConfigs();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Lỗi lưu trọng tâm: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteTopicConfig(int id)
+    {
+        try
+        {
+            var response = await Http.DeleteAsync($"{apiBaseUrl}/TopicConfigs/{id}");
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadTopicConfigs();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Lỗi xóa trọng tâm: {ex.Message}");
+        }
+    }
+
+    private async Task SaveSubjectRule()
+    {
+        if (string.IsNullOrWhiteSpace(newRule.RuleName) || string.IsNullOrWhiteSpace(newRule.RuleContent)) return;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync($"{apiBaseUrl}/SubjectRules", newRule);
+            if (response.IsSuccessStatusCode)
+            {
+                newRule.RuleName = "";
+                newRule.RuleContent = "";
+                await LoadSubjectRules();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Lỗi lưu quy tắc: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteSubjectRule(int id)
+    {
+        try
+        {
+            var response = await Http.DeleteAsync($"{apiBaseUrl}/SubjectRules/{id}");
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadSubjectRules();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Lỗi xóa quy tắc: {ex.Message}");
+        }
+    }
+
+    private int GetCurrentCount()
+    {
+        if (statistics == null || !statistics.Any()) return 0;
+        var match = statistics.FirstOrDefault(s => 
+            s.ClassGrade == genReq.ClassGrade && 
+            s.SubjectId == genReq.SubjectId && 
+            s.LevelId == genReq.LevelId);
+        return match?.TotalQuestions ?? 0;
+    }
+
+    private async Task GenerateAiQuestions()
+    {
+        isLoading = true;
+        alertMessage = "";
+        isError = false;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync($"{apiBaseUrl}/Admin/generate", genReq);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+                alertMessage = result.GetProperty("message").GetString() ?? "Tạo thành công!";
+                isError = false;
+                await LoadStatistics();
+            }
+            else
+            {
+                var errorResult = await response.Content.ReadFromJsonAsync<JsonElement>();
+                alertMessage = errorResult.GetProperty("message").GetString() ?? "Có lỗi xảy ra từ máy chủ.";
+                isError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            alertMessage = $"Lỗi kết nối: {ex.Message}";
+            isError = true;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    // Khai báo Model cho quản lý User
+    public class AdminUserModel
+    {
+        public int Id { get; set; }
+        public string Username { get; set; } = "";
+        public string FullName { get; set; } = "";
+        public int ClassGrade { get; set; }
+        public string Role { get; set; } = "";
+        public bool CanCreateExam { get; set; }
+    }
+
+    private List<AdminUserModel>? userList;
+
+    private async Task LoadUsersForAdmin()
+    {
+        activeTab = 5;
+        try
+        {
+            userList = await Http.GetFromJsonAsync<List<AdminUserModel>>($"{apiBaseUrl}/Users");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Lỗi tải danh sách user: {ex.Message}");
+            userList = new List<AdminUserModel>();
+        }
+    }
+
+    private async Task ToggleUserPermission(string username)
+    {
+        try
+        {
+            var response = await Http.PostAsync($"{apiBaseUrl}/Users/toggle-create-exam/{username}", null);
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadUsersForAdmin(); // Tải lại danh sách sau khi cập nhật thành công
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Lỗi thay đổi quyền: {ex.Message}");
+        }
+    }
+}

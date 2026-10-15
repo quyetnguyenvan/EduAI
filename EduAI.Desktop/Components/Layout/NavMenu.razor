@@ -1,0 +1,161 @@
+﻿@inject EduAI.Desktop.Services.AuthService AuthService
+@inject NavigationManager NavManager
+@implements IDisposable
+@inject Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage.ProtectedLocalStorage ProtectedLocalStore
+
+<!-- ================= CSS XỬ LÝ THANH CUỘN & HIỆU ỨNG ICON ================= -->
+<style>
+    /* 1. Ẩn hoàn toàn thanh cuộn ngang/dọc nhưng vẫn cho phép cuộn bằng chuột */
+    .modern-nav-scroll {
+        height: calc(100vh - 90px);
+        overflow-y: auto;
+        overflow-x: hidden;
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+    }
+    .modern-nav-scroll::-webkit-scrollbar {
+        display: none; /* Chrome, Safari, Opera */
+    }
+
+    /* 2. Hiệu ứng sinh động cho Icon khi Hover */
+    .nav-link {
+        display: flex;
+        align-items: center;
+        padding: 10px 16px !important;
+    }
+    .nav-link i {
+        font-size: 1.15rem;
+        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), color 0.3s ease;
+    }
+    .nav-link:hover i, .nav-link.active i {
+        transform: scale(1.25) translateY(-2px); /* Icon nảy to lên và nhích lên trên một chút */
+        filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3));
+    }
+
+    /* 3. Phân cách menu mềm mại */
+    .menu-category {
+        font-size: 0.7rem;
+        letter-spacing: 1.5px;
+        color: #6c757d; /* Màu xám dịu */
+        margin-top: 1.5rem;
+        margin-bottom: 0.5rem;
+        padding-left: 1.5rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+</style>
+<!-- ======================================================================= -->
+
+<div class="top-row ps-3 navbar navbar-dark justify-content-center border-bottom border-secondary mb-2" style="background: transparent; height: 80px;">
+    <a class="navbar-brand fw-bold fs-4 text-white d-flex align-items-center" href="">
+        <i class="bi bi-mortarboard-fill text-warning me-2" style="font-size: 1.5rem; filter: drop-shadow(0 0 5px rgba(255,193,7,0.5));"></i>
+        EduAI
+    </a>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<!-- Áp dụng class modern-nav-scroll để xóa thanh cuộn -->
+<div class="modern-nav-scroll" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="flex-column pb-4">
+        @if (AuthService.CurrentUser == null)
+        {
+            <div class="nav-item px-3 mb-3 mt-2">
+                <NavLink class="nav-link btn-gradient-primary text-center text-white rounded-pill justify-content-center" href="login">
+                    <i class="bi bi-box-arrow-in-right me-2"></i> Đăng nhập
+                </NavLink>
+            </div>
+        }
+        else
+        {
+            <!-- BOX THÔNG TIN TÀI KHOẢN -->
+            <div class="user-profile-box mx-3 mb-4 p-3 text-center rounded-4 shadow-sm" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.05);">
+                <img src="https://ui-avatars.com/api/?name=@(AuthService.CurrentUser.FullName)&background=random&color=fff&size=64" 
+                     class="rounded-circle mb-3 shadow" style="border: 2px solid #4361ee; transition: transform 0.3s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" />
+                <div class="fw-bold text-white fs-6 mb-1">@AuthService.CurrentUser.FullName</div>
+                <div class="small mb-3">
+                    <span class="badge @(AuthService.CurrentUser.Role?.ToLower() == "admin" ? "bg-danger" : "bg-primary") px-3 py-2 shadow-sm rounded-pill">
+                        @(AuthService.CurrentUser.Role?.ToLower() == "admin" ? "Quản trị viên" : $"Học sinh Lớp {AuthService.CurrentUser.ClassGrade}")
+                    </span>
+                </div>
+                <button class="btn btn-sm btn-outline-light w-100 fw-bold rounded-pill transition" @onclick="HandleLogout">
+                    <i class="bi bi-power text-danger me-1"></i> Đăng xuất
+                </button>
+            </div>
+
+            @if (AuthService.CurrentUser.Role?.ToLower() == "admin" || AuthService.CurrentUser.CanCreateExam)
+            {
+                <div class="nav-item px-3 mb-2">
+                    <NavLink class="nav-link text-white fw-bold shadow-sm" href="/admin" style="background: linear-gradient(135deg, #05cd99 0%, #04a97e 100%);">
+                        <i class="bi bi-magic me-2 text-warning"></i> Tạo bộ đề AI
+                    </NavLink>
+                </div>
+            }
+        }
+
+        <div class="nav-item px-3 mb-1">
+            <NavLink class="nav-link" href="profile">
+                <i class="bi bi-person-badge-fill me-3 text-info"></i> Hồ sơ của tôi
+            </NavLink>
+        </div>
+        
+        <!-- MÔN TOÁN -->
+        <div class="menu-category">Toán học</div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="exam/0/0" Match="NavLinkMatch.All">
+                <i class="bi bi-calculator me-3 text-primary"></i> Toán Cơ bản
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="exam/0/1" Match="NavLinkMatch.All">
+                <i class="bi bi-calculator-fill me-3 text-warning"></i> Toán Nâng cao
+            </NavLink>
+        </div>
+
+        <!-- TIẾNG VIỆT -->
+        <div class="menu-category">Tiếng Việt</div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="exam/1/0" Match="NavLinkMatch.All">
+                <i class="bi bi-book me-3 text-success"></i> TV Cơ bản
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="exam/1/1" Match="NavLinkMatch.All">
+                <i class="bi bi-book-half me-3 text-danger"></i> TV Nâng cao
+            </NavLink>
+        </div>
+
+        <!-- TIẾNG ANH -->
+        <div class="menu-category">Tiếng Anh</div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="exam/2/0" Match="NavLinkMatch.All">
+                <i class="bi bi-globe me-3 text-info"></i> Anh Cơ bản
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="exam/2/1" Match="NavLinkMatch.All">
+                <i class="bi bi-star-fill me-3 text-warning"></i> Anh Nâng cao
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        AuthService.OnChange += () => InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AuthService.OnChange -= () => InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleLogout()
+    {
+        AuthService.Logout();
+        await ProtectedLocalStore.DeleteAsync("userProfile");
+        await ProtectedLocalStore.DeleteAsync("userToken");
+        NavManager.NavigateTo("/login"); 
+    }
+}

@@ -1,0 +1,204 @@
+@page "/profile"
+@inject HttpClient Http
+@inject EduAI.Desktop.Services.AuthService AuthService
+@inject NavigationManager NavManager
+
+<PageTitle>Hồ sơ của tôi</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold m-0" style="color: var(--text-main);">
+            <i class="bi bi-person-lines-fill me-2 text-primary"></i> Hồ sơ học tập
+        </h2>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center mt-5">
+            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div>
+            <p class="mt-3 text-muted fw-bold">Đang đồng bộ dữ liệu...</p>
+        </div>
+    }
+    else if (user == null)
+    {
+        <div class="modern-card p-5 text-center mt-4 mx-auto" style="max-width: 600px;">
+            <i class="bi bi-shield-lock text-muted opacity-50 mb-3" style="font-size: 5rem;"></i>
+            <h4 class="fw-bold text-dark mb-3">Bạn chưa đăng nhập</h4>
+            <p class="text-muted mb-4">Vui lòng đăng nhập để xem báo cáo điểm số và lịch sử làm bài chi tiết.</p>
+            <button class="btn-gradient-primary px-5 py-2 fw-bold fs-5" @onclick="GoToLogin">Đăng nhập ngay</button>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            <!-- CỘT TRÁI: THÔNG TIN CÁ NHÂN -->
+            <div class="col-xl-4 col-lg-5">
+                <div class="modern-card h-100 overflow-hidden text-center position-relative">
+                    <!-- Nền nửa trên Gradient -->
+                    <div style="height: 140px; background: linear-gradient(135deg, #4361ee 0%, #3f37c9 100%);"></div>
+                    
+                    <div class="card-body px-4 pb-4" style="margin-top: -70px;">
+                        <img src="https://ui-avatars.com/api/?name=@(user.FullName)&background=ffffff&color=4361ee&size=128" 
+                             class="rounded-circle mb-3 shadow-lg" style="border: 6px solid #fff; width: 140px; height: 140px;" alt="Avatar" />
+                        <h4 class="fw-bold text-dark mb-1 fs-3">@user.FullName</h4>
+                        <p class="text-muted mb-4">@@@user.Username</p>
+                        
+                        <div class="d-inline-block px-4 py-2 rounded-pill bg-primary bg-opacity-10 text-primary fw-bold mb-4 shadow-sm border border-primary border-opacity-25">
+                            <i class="bi bi-mortarboard-fill me-2"></i> Học sinh Lớp @user.ClassGrade
+                        </div>
+                        
+                        <hr class="text-muted opacity-25 mb-4">
+                        
+                        <button class="btn btn-outline-danger w-100 fw-bold rounded-pill py-2" @onclick="HandleLogout">
+                            <i class="bi bi-box-arrow-right me-2"></i> Đăng xuất an toàn
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CỘT PHẢI: THỐNG KÊ VÀ LỊCH SỬ -->
+            <div class="col-xl-8 col-lg-7">
+                <div class="modern-card p-4 h-100">
+                    <h5 class="fw-bold mb-4" style="color: var(--text-main);">
+                        <i class="bi bi-bar-chart-fill text-primary me-2"></i> Báo cáo kết quả
+                    </h5>
+
+                    <!-- KHỐI 3 CHỈ SỐ -->
+                    <div class="row g-4 text-center mb-5">
+                        <div class="col-md-4">
+                            <div class="stat-box stat-blue d-flex align-items-center justify-content-center flex-column h-100 shadow-sm transition">
+                                <h1 class="mb-1 fw-bold display-5">@testResults.Count</h1>
+                                <span class="fw-bold opacity-75"><i class="bi bi-journal-check me-1"></i> Bài thi đã làm</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-box stat-green d-flex align-items-center justify-content-center flex-column h-100 shadow-sm">
+                                <h1 class="mb-1 fw-bold display-5">
+                                    @(testResults.Any() ? Math.Round(testResults.Average(t => t.Score), 1) : 0)
+                                </h1>
+                                <span class="fw-bold opacity-75"><i class="bi bi-bullseye me-1"></i> Điểm trung bình</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-box stat-orange d-flex align-items-center justify-content-center flex-column h-100 shadow-sm">
+                                <h1 class="mb-1 fw-bold display-5">
+                                    @(testResults.Any() ? testResults.Max(t => t.Score) : 0)
+                                </h1>
+                                <span class="fw-bold opacity-75"><i class="bi bi-trophy-fill me-1"></i> Điểm cao nhất</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BẢNG LỊCH SỬ -->
+                    <h5 class="fw-bold mb-4" style="color: var(--text-main);">
+                        <i class="bi bi-clock-history text-primary me-2"></i> Lịch sử làm bài gần đây
+                    </h5>
+                    
+                    @if (testResults.Count == 0)
+                    {
+                        <div class="p-5 text-center rounded-4" style="background: #f8fafc; border: 2px dashed #cbd5e1;">
+                            <i class="bi bi-inbox text-muted opacity-50" style="font-size: 4rem;"></i>
+                            <h5 class="mt-4 text-muted fw-bold">Chưa có dữ liệu thi</h5>
+                            <p class="text-muted small mb-0">Hãy chọn môn học ở menu bên trái để làm bài thi đầu tiên nhé!</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table modern-table w-100 align-middle">
+                                <thead>
+                                    <tr>
+                                        <th class="ps-4">Thời gian nộp bài</th>
+                                        <th>Môn học</th>
+                                        <th>Độ khó</th>
+                                        <th class="text-center">Số câu</th>
+                                        <th class="text-center pe-4">Điểm số</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var result in testResults.OrderByDescending(t => t.CompletedAt).Take(10))
+                                    {
+                                        <tr>
+                                            <td class="ps-4 text-muted fw-medium">
+                                                <i class="bi bi-calendar-event me-2 text-primary"></i>@result.CompletedAt.ToString("dd/MM/yyyy HH:mm")
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill fw-bold border border-primary border-opacity-25">
+                                                    @(GetSubjectName(result.Subject))
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary bg-opacity-10 text-secondary px-3 py-2 rounded-pill border border-secondary border-opacity-25">
+                                                    @(GetLevelName(result.Level))
+                                                </span>
+                                            </td>
+                                            <td class="text-center fw-bold text-muted fs-5">@result.TotalQuestions</td>
+                                            <td class="text-center pe-4">
+                                                <span class="fs-4 fw-bold @(result.Score >= 8 ? "text-success" : (result.Score >= 5 ? "text-warning" : "text-danger"))">
+                                                    @result.Score
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private EduAI.Desktop.Services.UserModel? user;
+    private List<TestResultModel> testResults = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        try
+        {
+            var currentUser = AuthService.CurrentUser;
+            if (currentUser != null)
+            {
+                user = await Http.GetFromJsonAsync<EduAI.Desktop.Services.UserModel>($"api/Users/username/{currentUser.Username}");
+                if (user != null)
+                {
+                    var results = await Http.GetFromJsonAsync<List<TestResultModel>>($"api/Users/{user.Id}/results");
+                    if (results != null) testResults = results;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Lỗi: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void GoToLogin() => NavManager.NavigateTo("/login");
+    private void HandleLogout()
+    {
+        AuthService.Logout();
+        NavManager.NavigateTo("/login");
+    }
+
+    private string GetSubjectName(int subjectId) => subjectId switch { 0 => "Toán", 1 => "Tiếng Việt / Văn", 2 => "Tiếng Anh", _ => "Khác" };
+    private string GetLevelName(int levelId) => levelId == 0 ? "Cơ bản" : "Nâng cao";
+
+    public class TestResultModel
+    {
+        public int Id { get; set; }
+        public int UserId { get; set; }
+        public int Subject { get; set; }
+        public int Level { get; set; }
+        public double Score { get; set; }
+        public int TotalQuestions { get; set; }
+        public DateTime CompletedAt { get; set; }
+    }
+}

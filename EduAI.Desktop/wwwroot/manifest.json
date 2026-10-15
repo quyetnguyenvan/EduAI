@@ -1,0 +1,15 @@
+{
+  "name": "EduAI Học Tập",
+  "short_name": "EduAI",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f7fe",
+  "theme_color": "#4361ee",
+  "icons": [
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
